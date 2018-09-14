@@ -5,6 +5,7 @@ import flask
 app = Flask(__name__)
 from keras.models import load_model
 import librosa
+import wave
 import numpy as np
 import tempfile
 def get_model():

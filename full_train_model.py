@@ -189,11 +189,10 @@ def train_test_model(train, config, quick_run=False):
         shutil.rmtree('logs/' + PREDICTION_FOLDER)
 
     skf = StratifiedKFold(train.label_idx, n_folds=config.n_folds)
-
     for i, (train_split, val_split) in enumerate(skf):
         train_set = train.iloc[train_split]
         val_set = train.iloc[val_split]
-        checkpoint = ModelCheckpoint(f'best_{i}.h5', monitor='val_loss', verbose=1, save_best_only=True)
+        checkpoint = ModelCheckpoint(f'best_{i}.h5', monitor='val_loss', verbose=1, save_best_only=True,save_weights_only=True)
         early = EarlyStopping(monitor="val_loss", mode="min", patience=5)
         tb = TensorBoard(log_dir='./logs/' + PREDICTION_FOLDER + '/fold_%d'%i, write_graph=True)
 
@@ -215,7 +214,7 @@ def train_test_model(train, config, quick_run=False):
         history = model.fit_generator(train_generator, callbacks=callbacks_list, validation_data=val_generator,
                                       epochs=config.max_epochs, use_multiprocessing=True, workers=6, max_queue_size=20)
 
-        model.load_weights(f'best_{i}.h5')
+        #model.load_weights(f'best_{i}.h5')
 
         # Save train predictions
         train_generator = DataGenerator(config, 'data/audio_train/', train.index, batch_size=128,

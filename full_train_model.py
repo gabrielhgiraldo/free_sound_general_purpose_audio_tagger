@@ -38,8 +38,13 @@ class Config(object):
             self.dim = (n_mels, self.audio_duration*60)
         else:
             self.dim = (self.audio_length, 1)
-def normalize_audio(audio):
-    return audio/max(audio)
+# def normalize_audio(audio):
+#     return audio/max(audio)
+def normalize_audio(data):
+    max_data = np.max(data)
+    min_data = np.min(data)
+    data = (data-min_data)/(max_data-min_data+1e-6)
+    return data-0.5
 class DataGenerator(d_utils.Sequence):
     def __init__(self, config, data_dir, list_IDs, labels=None, 
                  batch_size=64, preprocessing_fn=lambda x: x):
@@ -120,6 +125,24 @@ class DataGenerator(d_utils.Sequence):
             return X, n_utils.to_categorical(y, num_classes=self.config.n_classes)
         else:
             return X
+def get_1d_dummy_model(config):
+    
+    nclass = config.n_classes
+    input_length = config.audio_length
+    
+#     inp = Input(shape=(input_length,1))
+    model = Sequential()
+    model.add(Convolution1D(16, 9, activation='relu', padding="valid",input_shape=(input_length,1)))
+    model.add(Convolution1D(16, 9, activation='relu', padding="valid"))
+    #model.add(MaxPooling1D(16))
+    #model.add(Dropout(rate=0.1))
+    model.add(Dense(nclass, activation='softmax'))
+
+#     model = models.Model(inputs=inp, outputs=out)
+    opt = optimizers.Adam(config.learning_rate)
+
+    model.compile(optimizer=opt, loss='categorical_crossentropy', metrics=['acc'])
+    return model
 def get_conv_model(config):
     
     nclass = config.n_classes
@@ -170,11 +193,12 @@ def train_test_model(train, config, quick_run=False):
     for i, (train_split, val_split) in enumerate(skf):
         train_set = train.iloc[train_split]
         val_set = train.iloc[val_split]
-        checkpoint = ModelCheckpoint('best_%d.h5'%i, monitor='val_loss', verbose=1, save_best_only=True)
+        checkpoint = ModelCheckpoint(f'best_{i}.h5', monitor='val_loss', verbose=1, save_best_only=True)
         early = EarlyStopping(monitor="val_loss", mode="min", patience=5)
         tb = TensorBoard(log_dir='./logs/' + PREDICTION_FOLDER + '/fold_%d'%i, write_graph=True)
 
         callbacks_list = [checkpoint, early, tb]
+        #callbacks_list = [early]
         print("Fold: ", i)
         print("#"*50)
         if not quick_run:
@@ -191,18 +215,18 @@ def train_test_model(train, config, quick_run=False):
         history = model.fit_generator(train_generator, callbacks=callbacks_list, validation_data=val_generator,
                                       epochs=config.max_epochs, use_multiprocessing=True, workers=6, max_queue_size=20)
 
-        model.load_weights('best_%d.h5'%i)
+        model.load_weights(f'best_{i}.h5')
 
         # Save train predictions
         train_generator = DataGenerator(config, 'data/audio_train/', train.index, batch_size=128,
-                                        preprocessing_fn=audio_norm)
+                                        preprocessing_fn=normalize_audio)
         predictions = model.predict_generator(train_generator, use_multiprocessing=True, 
                                               workers=6, max_queue_size=20, verbose=1)
         np.save(PREDICTION_FOLDER + "/train_predictions_%d.npy"%i, predictions)
 
         # Save test predictions
         test_generator = DataGenerator(config, 'data/audio_test/', test.index, batch_size=128,
-                                        preprocessing_fn=audio_norm)
+                                        preprocessing_fn=normalize_audio)
         predictions = model.predict_generator(test_generator, use_multiprocessing=True, 
                                               workers=6, max_queue_size=20, verbose=1)
         np.save(PREDICTION_FOLDER + "/test_predictions_%d.npy"%i, predictions)
@@ -212,7 +236,10 @@ def train_test_model(train, config, quick_run=False):
         predicted_labels = [' '.join(list(x)) for x in top_3]
         test['label'] = predicted_labels
         test[['label']].to_csv(PREDICTION_FOLDER + "/predictions_%d.csv"%i)
-
+        #model.save_weights(f'best_{i}.h5')
+    model = get_conv_model(config)
+    model.load_weights(f'best_{len(skf)-1}')
+    model.save('best_model.h5')
 train = pd.read_csv('data/train.csv')
 test = pd.read_csv('data/sample_submission.csv')
 LABELS = list(train.label.unique())
@@ -221,5 +248,5 @@ train.set_index("fname", inplace=True)
 test.set_index("fname", inplace=True)
 train["label_idx"] = train.label.apply(lambda x: label_idx[x])
 
-config = Config(use_mel_spec=False, sampling_rate=24000, audio_duration=2, n_folds=10, learning_rate=0.001)
+config = Config(sampling_rate=10000, audio_duration=1, n_folds=2, learning_rate=0.001,max_epochs=20)
 train_test_model(train,config,quick_run=False)

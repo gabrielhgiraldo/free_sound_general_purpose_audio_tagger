@@ -1,0 +1,10 @@
+<html>
+    <head>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/wavesurfer.js/2.0.6/wavesurfer.min.js"></script>
+        <script src="./static/audio_tagger.js"></script>
+    </head>
+    <input type='file' onchange="audioManager.onUpload(this.files[0])">
+    <button onclick='audioManager.tagAudio()'>Get Tags</button>
+    <div id="waveform"></div>
+    <button onclick=audioManager.playAudio()>Play</button>
+</html>

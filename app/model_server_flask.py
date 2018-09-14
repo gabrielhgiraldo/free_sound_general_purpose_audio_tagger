@@ -7,7 +7,7 @@ from keras.models import load_model
 import librosa
 import wave
 import numpy as np
-import tempfile
+import pandas as pd
 def get_model():
     model = load_model('../best_model.h5')
     return model
@@ -52,17 +52,27 @@ def label_file():
     model = get_model()
     #temporarily write image to disk
     name="audio_file.wav"
-    audio_file.save(name)
+    with wave.open(name,'wb') as file:
+        file.setnchannels(1)
+        file.setsampwidth(2)
+        file.setframerate(44100)
+        file.writeframesraw(audio_file.read())
+    #audio_file.save(name)
     #process audio
-    data, sr = wave.open(name, sr=10000,
+    data, sr = librosa.core.load(name, sr=10000,
                                         res_type='kaiser_fast')
     audio_length = sr * 1
 
     data = adjust_audio_length(data,audio_length)
-    data = transform_data(data,10000)
+    data = transform_data(data,sr)
     #predict tags
-    model.predict(data)
-    return flask.jsonify(checkpoints='test!')
+    X=np.empty((1,audio_length,1))
+    X[0,] = data
+    predictions = model.predict(X)
+    train = pd.read_csv('../data/train.csv')
+    LABELS = list(train.label.unique())
+    top_3 = np.array(LABELS)[np.argsort(-predictions, axis=1)[:, :3]]
+    return flask.jsonify(classes=top_3.tolist())
 
 if __name__ == '__main__':
     app.run(debug=True, user_reloader=False)

@@ -10,9 +10,11 @@ from keras.callbacks import (EarlyStopping, LearningRateScheduler,
 import pandas as pd
 import os
 from sklearn.cross_validation import StratifiedKFold
+from sklearn.model_selection import train_test_split
 import librosa
 import shutil
 import numpy as np
+import pickle 
 class Config(object):
     def __init__(self,
                  sampling_rate=16000, audio_duration=2, n_classes=41,
@@ -38,22 +40,14 @@ class Config(object):
             self.dim = (n_mels, self.audio_duration*60)
         else:
             self.dim = (self.audio_length, 1)
-# def normalize_audio(audio):
-#     return audio/max(audio)
-def normalize_audio(data):
-    max_data = np.max(data)
-    min_data = np.min(data)
-    data = (data-min_data)/(max_data-min_data+1e-6)
-    return data-0.5
 class DataGenerator(d_utils.Sequence):
     def __init__(self, config, data_dir, list_IDs, labels=None, 
-                 batch_size=64, preprocessing_fn=lambda x: x):
+                 batch_size=64):
         self.config = config
         self.data_dir = data_dir
         self.list_IDs = list_IDs
         self.labels = labels
         self.batch_size = batch_size
-        self.preprocessing_fn = preprocessing_fn
         self.on_epoch_end()
         self.dim = self.config.dim
 
@@ -67,20 +61,14 @@ class DataGenerator(d_utils.Sequence):
 
     def on_epoch_end(self):
         self.indexes = np.arange(len(self.list_IDs))
-        
-    def transform_data(self,data):
-        if self.config.use_mfcc:
-            data = librosa.feature.mfcc(data, sr=self.config.sampling_rate,
-                                               n_mfcc=self.config.n_mfcc)
-            data = np.expand_dims(data, axis=-1)
-        elif self.config.use_mel_spec:
-            data = librosa.feature.melspectrogram(data,sr=self.config.sampling_rate,n_mels=self.config.n_mels)
-        else:
-            data = self.preprocessing_fn(data)[:, np.newaxis]
-        return data
+
+    def normalize_audio(self,data):
+        max_data = np.max(data)
+        min_data = np.min(data)
+        data = (data-min_data)/(max_data-min_data+1e-6)
+        return data-0.5
     
     def adjust_audio_length(self,data,input_length):
-       # print("adjusted audio length")
         if len(data) > input_length:
             max_offset = len(data) - input_length
             offset = np.random.randint(max_offset)
@@ -92,12 +80,7 @@ class DataGenerator(d_utils.Sequence):
             else:
                 offset = 0
             data = np.pad(data, (offset, input_length - len(data) - offset), "constant")
-       # print(len(data))
         return data
-#             if len(data) >= input_length:
-#                 data = data[:input_length]
-#             else:
-#                 data = np.pad(data,input_length-len(data),"constant")
     def __data_generation(self, list_IDs_temp):
         cur_batch_size = len(list_IDs_temp)
         X = np.empty((cur_batch_size, *self.dim))
@@ -109,14 +92,15 @@ class DataGenerator(d_utils.Sequence):
             # Read and Resample the audio
             data, _ = librosa.core.load(file_path, sr=self.config.sampling_rate,
                                         res_type='kaiser_fast')
-            
+            #remove silence from files
+            if len(data) > 0:
+                data, _  = librosa.effects.trim(data)
+            #normalize audio
+            data = self.normalize_audio(data)
             #fixing lengths of files
             # Random offset / Padding
             data = self.adjust_audio_length(data,input_length)
-            #other preprocessing
-            data = self.transform_data(data)
-         
-            X[i,] = data
+            X[i,] = data[:, np.newaxis]
 
         if self.labels is not None:
             y = np.empty(cur_batch_size, dtype=int)
@@ -125,30 +109,11 @@ class DataGenerator(d_utils.Sequence):
             return X, n_utils.to_categorical(y, num_classes=self.config.n_classes)
         else:
             return X
-def get_1d_dummy_model(config):
-    
-    nclass = config.n_classes
-    input_length = config.audio_length
-    
-#     inp = Input(shape=(input_length,1))
-    model = Sequential()
-    model.add(Convolution1D(16, 9, activation='relu', padding="valid",input_shape=(input_length,1)))
-    model.add(Convolution1D(16, 9, activation='relu', padding="valid"))
-    #model.add(MaxPooling1D(16))
-    #model.add(Dropout(rate=0.1))
-    model.add(Dense(nclass, activation='softmax'))
-
-#     model = models.Model(inputs=inp, outputs=out)
-    opt = optimizers.Adam(config.learning_rate)
-
-    model.compile(optimizer=opt, loss='categorical_crossentropy', metrics=['acc'])
-    return model
 def get_conv_model(config):
     
     nclass = config.n_classes
     input_length = config.audio_length
     
-#     inp = Input(shape=(input_length,1))
     model = Sequential()
     model.add(Convolution1D(16, 9, activation='relu', padding="valid",input_shape=(input_length,1)))
     model.add(Convolution1D(16, 9, activation='relu', padding="valid"))
@@ -177,10 +142,7 @@ def get_conv_model(config):
     opt = optimizers.Adam(config.learning_rate)
     model.compile(optimizer=opt, loss='categorical_crossentropy', metrics=['acc'])
     return model
-def train_test_model(train, config, quick_run=False):
-    if quick_run:
-        train = train.sample(2000)
-        config = Config(sampling_rate=100, audio_duration=1, n_folds=2, max_epochs=1)
+def train_test_model(train,test, config, full_data=True):
 
     PREDICTION_FOLDER = "predictions_1d_conv"
     if not os.path.exists(PREDICTION_FOLDER):
@@ -200,33 +162,26 @@ def train_test_model(train, config, quick_run=False):
         #callbacks_list = [early]
         print("Fold: ", i)
         print("#"*50)
-        if not quick_run:
-            model = get_conv_model(config)
-        else:
-            model = get_1d_dummy_model(config)
+        model = get_conv_model(config)
         train_generator = DataGenerator(config, 'data/audio_train/', train_set.index, 
-                                        train_set.label_idx, batch_size=64,
-                                        preprocessing_fn=normalize_audio)
+                                        train_set.label_idx, batch_size=64)
         val_generator = DataGenerator(config, 'data/audio_train/', val_set.index, 
-                                      val_set.label_idx, batch_size=64,
-                                      preprocessing_fn=normalize_audio)
+                                      val_set.label_idx, batch_size=64)
 
         history = model.fit_generator(train_generator, callbacks=callbacks_list, validation_data=val_generator,
-                                      epochs=config.max_epochs, use_multiprocessing=True, workers=6, max_queue_size=20)
+                                      epochs=config.max_epochs, use_multiprocessing=False, workers=6, max_queue_size=20)
 
-        #model.load_weights(f'best_{i}.h5')
+        model.load_weights(f'best_{i}.h5')
 
         # Save train predictions
-        train_generator = DataGenerator(config, 'data/audio_train/', train.index, batch_size=128,
-                                        preprocessing_fn=normalize_audio)
-        predictions = model.predict_generator(train_generator, use_multiprocessing=True, 
+        train_generator = DataGenerator(config, 'data/audio_train/', train.index, batch_size=128)
+        predictions = model.predict_generator(train_generator, use_multiprocessing=False, 
                                               workers=6, max_queue_size=20, verbose=1)
         np.save(PREDICTION_FOLDER + "/train_predictions_%d.npy"%i, predictions)
 
         # Save test predictions
-        test_generator = DataGenerator(config, 'data/audio_test/', test.index, batch_size=128,
-                                        preprocessing_fn=normalize_audio)
-        predictions = model.predict_generator(test_generator, use_multiprocessing=True, 
+        test_generator = DataGenerator(config, 'data/audio_test/', test.index, batch_size=128)
+        predictions = model.predict_generator(test_generator, use_multiprocessing=False, 
                                               workers=6, max_queue_size=20, verbose=1)
         np.save(PREDICTION_FOLDER + "/test_predictions_%d.npy"%i, predictions)
 
@@ -239,13 +194,17 @@ def train_test_model(train, config, quick_run=False):
     model = get_conv_model(config)
     model.load_weights(f'best_{len(skf)-1}')
     model.save('best_model.h5')
-train = pd.read_csv('data/train.csv')
+data = pd.read_csv('data/train.csv')
+train, hold_out = train_test_split(data)
+hold_out.to_csv('data/hold_out.csv')
 test = pd.read_csv('data/sample_submission.csv')
-LABELS = list(train.label.unique())
+LABELS = sorted(list(train.label.unique()))
+with open('labels.pkl','wb+') as file:
+    pickle.dump(LABELS,file)
 label_idx = {label: i for i, label in enumerate(LABELS)}
 train.set_index("fname", inplace=True)
 test.set_index("fname", inplace=True)
 train["label_idx"] = train.label.apply(lambda x: label_idx[x])
 
-config = Config(sampling_rate=10000, audio_duration=1, n_folds=2, learning_rate=0.001,max_epochs=20)
-train_test_model(train,config,quick_run=False)
+config = Config(sampling_rate=44100, audio_duration=2, n_folds=2, learning_rate=0.001,max_epochs=50)
+train_test_model(train,test,config)

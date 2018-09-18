@@ -1,11 +1,63 @@
 <html>
-    <head>
-        <script src="https://cdnjs.cloudflare.com/ajax/libs/wavesurfer.js/2.0.6/wavesurfer.min.js"></script>
-        <script src="./static/audio_tagger.js"></script>
-    </head>
-    <input type='file' onchange="audioManager.onUpload(this.files[0])">
-    <button onclick='audioManager.tagAudio()'>Get Tags</button>
-    <div id="waveform"></div>
-    <button onclick=audioManager.playAudio()>Play</button>
-    <p id="predictions"></p>
+
+<head>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/wavesurfer.js/2.0.6/wavesurfer.min.js"></script>
+    <script src="./static/audio_tagger.js"></script>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons">
+    <link rel="stylesheet" href="https://code.getmdl.io/1.3.0/material.red-lime.min.css" />
+    <script defer src="https://code.getmdl.io/1.3.0/material.min.js"></script>
+    <link rel="stylesheet" href="./static/custom.css">
+
+</head>
+
+<body>
+    <div style="text-align: center">
+        <span class="mdl-typography--display-3">What's That Sound?</span>
+    </div>
+    <div class="mdl-card mdl-shadow--4dp big-card" style="margin:auto">
+        <div class="mdl-card__media">
+            <div class="clearfix">
+                <label class="mdl-button mdl-button--colored mdl-js-button mdl-button--raised mdl-js-ripple-effect" style="float:right">
+                    Browse
+                    <input type="file" style="display: none;" onchange="audioManager.onUpload(this.files[0])">
+                </label>
+            </div>
+            <div id="waveform"></div>
+        </div>
+        <div class="mdl-card__supporting-text">
+            <div style="text-align: center">
+                <button class="mdl-button mdl-js-button mdl-button--raised mdl-js-ripple-effect mdl-button--accent" onclick='audioManager.tagAudio()'>Identify My Sound</button>
+                <button class="mdl-button mdl-js-button mdl-button--raised mdl-js-ripple-effect mdl-button--primary" onclick=audioManager.playAudio()>Play</button>
+                <p>upload a wave file to find out what's in it!</p>
+            </div>
+        </div>
+    </div>
+    <div style="text-align: center">
+        <div id="spinner" class="mdl-spinner mdl-js-spinner"></div>
+        <div id="predictions" class="class-list">
+            <p>
+                <span>
+                    <span id="class-1" class="emphasis"></span>
+                    <span> with probability</span>
+                    <span id="prob-1" class="emphasis"></span>%
+                </span>
+            </p>
+            <p>
+                <span>
+                    <span id="class-2" class="emphasis"></span>
+                    <span> with probability</span>
+                    <span id="prob-2" class="emphasis"></span>%
+                </span>
+            </p>
+            <p>
+                <span>
+                    <span id="class-3" class="emphasis"></span>
+                    <span> with probability</span>
+                    <span id="prob-3" class="emphasis"></span>%
+                </span>
+            </p>
+        </div>
+    </div>
+</body>
+
 </html>

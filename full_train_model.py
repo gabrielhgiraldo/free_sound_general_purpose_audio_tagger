@@ -20,23 +20,19 @@ class Config(object):
                  sampling_rate=16000, audio_duration=2, n_classes=41,
                  use_mel_spec=False,
                  n_mels=128,
-                 use_mfcc=False, n_folds=10, learning_rate=0.0001, 
-                 max_epochs=50, n_mfcc=20):
+                 n_folds=10, learning_rate=0.0001, 
+                 max_epochs=50):
         self.sampling_rate = sampling_rate
         self.audio_duration = audio_duration
         self.n_classes = n_classes
-        self.use_mfcc = use_mfcc
         self.use_mel_spec = use_mel_spec
         self.n_mels = n_mels
-        self.n_mfcc = n_mfcc
         self.n_folds = n_folds
         self.learning_rate = learning_rate
         self.max_epochs = max_epochs
 
         self.audio_length = self.sampling_rate * self.audio_duration
-        if self.use_mfcc:
-            self.dim = (self.n_mfcc, 1 + int(np.floor(self.audio_length/512)), 1)
-        elif self.use_mel_spec:
+        if self.use_mel_spec:
             self.dim = (n_mels, self.audio_duration*60)
         else:
             self.dim = (self.audio_length, 1)
@@ -95,8 +91,8 @@ class DataGenerator(d_utils.Sequence):
             #remove silence from files
             if len(data) > 0:
                 data, _  = librosa.effects.trim(data)
-            #normalize audio
-            data = self.normalize_audio(data)
+                #normalize audio
+                data = self.normalize_audio(data)
             #fixing lengths of files
             # Random offset / Padding
             data = self.adjust_audio_length(data,input_length)
@@ -190,7 +186,6 @@ def train_test_model(train,test, config, full_data=True):
         predicted_labels = [' '.join(list(x)) for x in top_3]
         test['label'] = predicted_labels
         test[['label']].to_csv(PREDICTION_FOLDER + "/predictions_%d.csv"%i)
-        #model.save_weights(f'best_{i}.h5')
     model = get_conv_model(config)
     model.load_weights(f'best_{len(skf)-1}')
     model.save('best_model.h5')

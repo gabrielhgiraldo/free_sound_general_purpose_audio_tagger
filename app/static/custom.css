@@ -2,8 +2,16 @@
     width: 80%;
     height: 40%;
 }
-
+body{
+    background-color:#FAFAFA;
+    background-image:url('bg-2.jpg')
+}
+.class-list-wrapper{
+    text-align:center;
+    margin-top:10px;
+}
 .class-list {
+    margin-top:10px;
     width: 80%;
     margin:auto;
 }

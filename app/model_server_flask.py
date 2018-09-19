@@ -39,9 +39,10 @@ def transform_data(data,sampling_rate=44100,use_mel_spec=False,n_mels=128):
         if use_mel_spec:
             data = librosa.feature.melspectrogram(data,sr=sampling_rate,n_mels=n_mels)
         else:
-            data = preprocessing_fn(data)[:, np.newaxis]
+            data = data[:, np.newaxis]
         return data
-
+#routes
+model = get_model()
 @app.route("/")
 def get_page():
     with open("audio_tagger.html", 'r') as viz_file:
@@ -53,7 +54,7 @@ def label_file():
     audio_duration=2
     audio_length = sampling_rate * audio_duration
     audio_file = request.files['audio']
-    model = get_model()
+    # model = get_model()
     name="audio_file.wav"
     #save audio file locally
     with wave.open(name,'wb') as file:
@@ -66,6 +67,7 @@ def label_file():
                                         res_type='kaiser_fast')
     #trim silence from data
     data, _ = librosa.effects.trim(data)
+    data = normalize_audio(data)
     #chop audio into pieces that are correct length for output
     #data = window_data(data,audio_length)
     data = [data]

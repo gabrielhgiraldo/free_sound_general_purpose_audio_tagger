@@ -12,7 +12,7 @@
 
 <body>
     <div style="text-align: center">
-        <span class="mdl-typography--display-3">What's That Sound?</span>
+        <h1 class="mdl-typography--display-3">What's That Sound?</h1>
     </div>
     <div class="mdl-card mdl-shadow--4dp big-card" style="margin:auto">
         <div class="mdl-card__media">
@@ -29,31 +29,31 @@
                 <button class="mdl-button mdl-js-button mdl-button--raised mdl-js-ripple-effect mdl-button--accent" onclick='audioManager.tagAudio()'>Identify My Sound</button>
                 <button class="mdl-button mdl-js-button mdl-button--raised mdl-js-ripple-effect mdl-button--primary" onclick=audioManager.playAudio()>Play</button>
                 <p>upload a wave file to find out what's in it!</p>
+                <div id="spinner" class="mdl-spinner mdl-js-spinner"></div>
             </div>
         </div>
     </div>
-    <div style="text-align: center">
-        <div id="spinner" class="mdl-spinner mdl-js-spinner"></div>
+    <div class="class-list-wrapper">
         <div id="predictions" class="class-list">
             <p>
                 <span>
                     <span id="class-1" class="emphasis"></span>
                     <span> with probability</span>
-                    <span id="prob-1" class="emphasis"></span>%
+                    <span id="prob-1" class="emphasis"></span>
                 </span>
             </p>
             <p>
                 <span>
                     <span id="class-2" class="emphasis"></span>
                     <span> with probability</span>
-                    <span id="prob-2" class="emphasis"></span>%
+                    <span id="prob-2" class="emphasis"></span>
                 </span>
             </p>
             <p>
                 <span>
                     <span id="class-3" class="emphasis"></span>
                     <span> with probability</span>
-                    <span id="prob-3" class="emphasis"></span>%
+                    <span id="prob-3" class="emphasis"></span>
                 </span>
             </p>
         </div>
